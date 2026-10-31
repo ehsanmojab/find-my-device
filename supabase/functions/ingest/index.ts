@@ -61,23 +61,40 @@ function validatePoint(p: unknown): LocationPoint | null {
   if (typeof p !== "object" || p === null) return null;
   const obj = p as Record<string, unknown>;
 
-  if (typeof obj.phone_name !== "string") return null;
-  if (obj.phone_name.length === 0 || obj.phone_name.length > 50) return null;
+  // Allow empty or missing phone_name, defaulting to "Android Device"
+  const phoneName = typeof obj.phone_name === "string" && obj.phone_name.trim().length > 0
+    ? obj.phone_name.trim().slice(0, 50)
+    : "Android Device";
 
-  const lat = Number(obj.lat);
-  const lon = Number(obj.lon);
-  if (!Number.isFinite(lat) || lat < -90 || lat > 90) return null;
-  if (!Number.isFinite(lon) || lon < -180 || lon > 180) return null;
+  // Support numeric or string coordinates, handling European decimal commas (e.g. "35,689")
+  const rawLat = String(obj.lat ?? "").trim().replace(",", ".");
+  const rawLon = String(obj.lon ?? "").trim().replace(",", ".");
+  const lat = parseFloat(rawLat);
+  const lon = parseFloat(rawLon);
 
-  if (typeof obj.timestamp !== "string") return null;
-  const ts = new Date(obj.timestamp);
-  if (isNaN(ts.getTime())) return null;
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+    console.warn("Invalid lat received:", obj.lat);
+    return null;
+  }
+  if (!Number.isFinite(lon) || lon < -180 || lon > 180) {
+    console.warn("Invalid lon received:", obj.lon);
+    return null;
+  }
+
+  // Support missing, empty, or custom timestamps - default to current time if absent or invalid
+  let timestamp = new Date().toISOString();
+  if (typeof obj.timestamp === "string" && obj.timestamp.trim().length > 0) {
+    const parsedTs = new Date(obj.timestamp.trim());
+    if (!isNaN(parsedTs.getTime())) {
+      timestamp = parsedTs.toISOString();
+    }
+  }
 
   return {
-    phone_name: obj.phone_name,
+    phone_name: phoneName,
     lat,
     lon,
-    timestamp: ts.toISOString(),
+    timestamp,
   };
 }
 
@@ -122,20 +139,44 @@ Deno.serve(async (req: Request) => {
 
   // ---- Parse body ------------------------------------------
   let body: unknown;
+  const rawText = await req.text();
+  if (rawText.length > MAX_BODY_BYTES) {
+    return jsonResponse({ error: "Payload too large" }, 413);
+  }
+
   try {
-    const text = await req.text();
-    if (text.length > MAX_BODY_BYTES) {
-      return jsonResponse({ error: "Payload too large" }, 413);
+    body = JSON.parse(rawText);
+  } catch (_jsonErr) {
+    // Fallback: try parsing form url-encoded data (e.g. lat=35.1&lon=51.2)
+    try {
+      const params = new URLSearchParams(rawText);
+      if (params.has("lat") && params.has("lon")) {
+        body = {
+          lat: params.get("lat"),
+          lon: params.get("lon"),
+          phone_name: params.get("phone_name") || "Android Device",
+          timestamp: params.get("timestamp") || new Date().toISOString(),
+        };
+      } else {
+        console.warn("Invalid body received (not valid JSON):", rawText.slice(0, 200));
+        return jsonResponse({
+          error: "Invalid JSON in request body",
+          received: rawText.slice(0, 200),
+        }, 400);
+      }
+    } catch {
+      console.warn("Invalid body received:", rawText.slice(0, 200));
+      return jsonResponse({
+        error: "Invalid JSON in request body",
+        received: rawText.slice(0, 200),
+      }, 400);
     }
-    body = JSON.parse(text);
-  } catch {
-    return jsonResponse({ error: "Invalid JSON" }, 400);
   }
 
   // Normalise single object → array
   const rawPoints = Array.isArray(body) ? body : [body];
   if (rawPoints.length === 0 || rawPoints.length > MAX_POINTS) {
-    return jsonResponse({ error: "Invalid point count" }, 400);
+    return jsonResponse({ error: "Invalid point count: must be between 1 and 500" }, 400);
   }
 
   // Validate each point
@@ -143,7 +184,11 @@ Deno.serve(async (req: Request) => {
   for (const rp of rawPoints) {
     const vp = validatePoint(rp);
     if (!vp) {
-      return jsonResponse({ error: "Invalid point data" }, 400);
+      console.warn("Invalid point data received:", rp);
+      return jsonResponse({
+        error: "Invalid point data: 'lat' and 'lon' must be valid numbers between -90..90 and -180..180.",
+        received_point: rp,
+      }, 400);
     }
     points.push(vp);
   }
