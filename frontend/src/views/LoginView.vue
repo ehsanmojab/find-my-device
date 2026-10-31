@@ -104,7 +104,7 @@ async function handleLogin() {
     }
 
     const trimmed = identifier.value.trim()
-    const email = trimmed.includes('@') ? trimmed : `${trimmed.toLowerCase()}@${EMAIL_DOMAIN}`
+    const email = trimmed.includes('@') ? trimmed.toLowerCase() : `${trimmed.toLowerCase()}@${EMAIL_DOMAIN}`
 
     const { data, error: loginErr } = await supabase.auth.signInWithPassword({
       email,
@@ -112,6 +112,7 @@ async function handleLogin() {
     })
 
     if (loginErr) {
+      console.error('Supabase signIn error:', loginErr)
       error.value = loginErr.message || 'Invalid username/email or password'
       return
     }
@@ -135,7 +136,8 @@ async function handleLogin() {
 
     router.push({ name: 'Dashboard' })
   } catch (e) {
-    error.value = 'An unexpected error occurred'
+    console.error('Unexpected login error:', e)
+    error.value = e?.message || 'An unexpected error occurred'
   } finally {
     loading.value = false
   }
