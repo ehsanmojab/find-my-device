@@ -4,6 +4,8 @@ import L from 'leaflet'
  * Creates modern, state-of-the-art navigation base map layers.
  */
 export function createTileLayers() {
+  const customUrl = (import.meta.env.VITE_MAP_TILE_URL || '').trim()
+
   const dark = L.tileLayer(
     'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png',
     {
@@ -37,14 +39,26 @@ export function createTileLayers() {
     maxZoom: 19,
   })
 
+  const baseLayers = {}
+  let defaultLayer = dark
+
+  if (customUrl) {
+    const custom = L.tileLayer(customUrl, {
+      attribution: '&copy; Custom Map Provider &copy; OpenStreetMap',
+      maxZoom: 20,
+    })
+    baseLayers['⭐ Premium Custom Map'] = custom
+    defaultLayer = custom
+  }
+
+  baseLayers['🌙 Dark Navigation'] = dark
+  baseLayers['🗺️ Street Navigation'] = street
+  baseLayers['🛰️ Satellite View'] = satellite
+  baseLayers['🌐 OpenStreetMap'] = osm
+
   return {
-    defaultLayer: dark,
-    baseLayers: {
-      '🌙 Dark Navigation': dark,
-      '🗺️ Street Navigation': street,
-      '🛰️ Satellite View': satellite,
-      '🌐 OpenStreetMap': osm,
-    },
+    defaultLayer,
+    baseLayers,
   }
 }
 

@@ -56,6 +56,7 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
           VITE_EMAIL_DOMAIN: ${{ vars.VITE_EMAIL_DOMAIN }}
           VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH }}
+          VITE_MAP_TILE_URL: ${{ vars.VITE_MAP_TILE_URL }}
         run: npm run build
 
       - uses: actions/configure-pages@v5
