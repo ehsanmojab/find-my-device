@@ -121,7 +121,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { supabase } from '../lib/supabase.js'
+import { supabase, supabaseUrl } from '../lib/supabase.js'
 
 const phoneName = ref('')
 const token = ref('')
@@ -131,7 +131,6 @@ const step = ref('name')
 const copied = ref(false)
 const copiedJs = ref(false)
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
 const ingestUrl = computed(() => `${supabaseUrl}/functions/v1/ingest`)
 
 const jsCode = computed(() => {
