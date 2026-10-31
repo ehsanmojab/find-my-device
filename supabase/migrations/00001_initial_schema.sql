@@ -9,7 +9,7 @@ create extension if not exists pgcrypto with schema extensions;
 create table public.profiles (
   id         uuid primary key references auth.users(id) on delete cascade,
   username   text not null unique
-               check (username ~ '^[a-z0-9_]{3,20}$')
+               check (char_length(username) between 1 and 100)
 );
 
 alter table public.profiles enable row level security;
@@ -114,6 +114,11 @@ begin
      or char_length(p_phone_name) > 50 then
     raise exception 'phone_name must be 1-50 characters';
   end if;
+
+  -- Ensure profile exists for the user
+  insert into public.profiles (id, username)
+  values (v_user_id, 'user_' || substr(v_user_id::text, 1, 8))
+  on conflict (id) do nothing;
 
   -- Generate device
   v_device_id := gen_random_uuid();

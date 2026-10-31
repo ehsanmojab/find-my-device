@@ -11,17 +11,15 @@
 
       <form id="login-form" @submit.prevent="handleLogin" class="flex flex-col gap-4">
         <div>
-          <label for="username" class="block text-sm font-medium mb-1.5" style="color: var(--color-text-muted);">Username</label>
+          <label for="identifier" class="block text-sm font-medium mb-1.5" style="color: var(--color-text-muted);">Email or Username</label>
           <input
-            id="username"
-            v-model="username"
+            id="identifier"
+            v-model="identifier"
             type="text"
             class="input"
-            placeholder="your_username"
-            autocomplete="username"
+            placeholder="name@example.com or username"
+            autocomplete="username email"
             required
-            pattern="[a-z0-9_]{3,20}"
-            title="3-20 lowercase letters, numbers, or underscores"
           />
         </div>
         <div>
@@ -31,10 +29,9 @@
             v-model="password"
             type="password"
             class="input"
-            placeholder="••••••••••••"
+            placeholder="••••••••"
             autocomplete="current-password"
             required
-            minlength="12"
           />
         </div>
 
@@ -79,7 +76,7 @@ import { supabase } from '../lib/supabase.js'
 const EMAIL_DOMAIN = import.meta.env.VITE_EMAIL_DOMAIN || 'findanydevice.local'
 
 const router = useRouter()
-const username = ref('')
+const identifier = ref('')
 const password = ref('')
 const totpCode = ref('')
 const error = ref('')
@@ -106,14 +103,16 @@ async function handleLogin() {
       return
     }
 
-    const email = `${username.value.toLowerCase()}@${EMAIL_DOMAIN}`
+    const trimmed = identifier.value.trim()
+    const email = trimmed.includes('@') ? trimmed : `${trimmed.toLowerCase()}@${EMAIL_DOMAIN}`
+
     const { data, error: loginErr } = await supabase.auth.signInWithPassword({
       email,
       password: password.value,
     })
 
     if (loginErr) {
-      error.value = 'Invalid username or password'
+      error.value = loginErr.message || 'Invalid username/email or password'
       return
     }
 

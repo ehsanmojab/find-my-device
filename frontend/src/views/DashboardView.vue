@@ -2,8 +2,8 @@
   <div class="max-w-6xl mx-auto animate-fade-in">
     <div class="flex items-center justify-between mb-6">
       <h1 class="text-2xl font-bold">Dashboard</h1>
-      <p v-if="profile" class="text-sm" style="color: var(--color-text-muted);">
-        Welcome, <span class="font-semibold" style="color: var(--color-text);">{{ profile.username }}</span>
+      <p v-if="profile?.username || userEmail" class="text-sm" style="color: var(--color-text-muted);">
+        Welcome, <span class="font-semibold" style="color: var(--color-text);">{{ profile?.username || userEmail }}</span>
       </p>
     </div>
 
@@ -70,6 +70,7 @@ import { supabase } from '../lib/supabase.js'
 import L from 'leaflet'
 
 const profile = ref(null)
+const userEmail = ref('')
 const devices = ref([])
 const loading = ref(true)
 let map = null
@@ -103,12 +104,13 @@ async function loadData() {
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return
+  userEmail.value = user.email || ''
 
   const { data: profileData } = await supabase
     .from('profiles')
     .select('username')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
   profile.value = profileData
 
   const { data: deviceData } = await supabase
