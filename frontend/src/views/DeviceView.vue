@@ -3,66 +3,82 @@
     <!-- Header -->
     <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
       <div class="flex items-center gap-3">
-        <router-link to="/" class="btn btn-ghost" style="padding: 0.5rem;">
+        <router-link to="/" class="btn btn-ghost" style="padding: 0.5rem;" title="Back to Dashboard">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         </router-link>
-        <h1 class="text-2xl font-bold">{{ device?.phone_name || 'Device' }}</h1>
-        <span v-if="device?.revoked" class="text-xs font-medium px-2 py-0.5 rounded-full" style="background: rgba(239,68,68,0.2); color: #fca5a5;">Revoked</span>
+        <h1 class="text-2xl font-bold flex items-center gap-2">
+          <span>{{ device?.phone_name || 'Device History' }}</span>
+          <span v-if="device?.revoked" class="text-xs font-medium px-2.5 py-0.5 rounded-full" style="background: rgba(239,68,68,0.2); color: #fca5a5;">Revoked</span>
+          <span v-else class="text-xs font-medium px-2.5 py-0.5 rounded-full" style="background: rgba(34,197,94,0.15); color: #86efac;">Active</span>
+        </h1>
       </div>
       <div class="flex gap-2">
         <button v-if="device && !device.revoked" id="btn-revoke" class="btn btn-ghost" style="font-size: 0.8rem;" @click="revokeDevice">
-          Revoke
+          Revoke Access
         </button>
         <button id="btn-delete" class="btn btn-danger" style="font-size: 0.8rem;" @click="deleteDevice">
-          Delete
+          Delete Device
         </button>
       </div>
     </div>
 
-    <!-- Info -->
+    <!-- Device Telemetry Summary Card -->
     <div v-if="device" class="glass-card p-5 mb-6">
-      <div class="grid grid-cols-2 gap-4 text-sm" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
         <div>
-          <span style="color: var(--color-text-muted);">Phone Name</span>
-          <p class="font-semibold">{{ device.phone_name }}</p>
+          <span style="color: var(--color-text-muted);" class="text-xs">Phone Name</span>
+          <p class="font-semibold text-base">{{ device.phone_name }}</p>
         </div>
         <div>
-          <span style="color: var(--color-text-muted);">Last Seen</span>
-          <p class="font-semibold">{{ device.last_seen ? formatTime(device.last_seen) : 'Never' }}</p>
+          <span style="color: var(--color-text-muted);" class="text-xs">Last Seen</span>
+          <p class="font-semibold text-base">{{ device.last_seen ? formatTime(device.last_seen) : 'Never' }}</p>
         </div>
         <div>
-          <span style="color: var(--color-text-muted);">Created</span>
-          <p class="font-semibold">{{ formatTime(device.created_at) }}</p>
+          <span style="color: var(--color-text-muted);" class="text-xs">Distance Recorded</span>
+          <p class="font-semibold text-base text-blue-400">{{ totalDistanceKm }} km</p>
         </div>
         <div>
-          <span style="color: var(--color-text-muted);">Status</span>
-          <p class="font-semibold" :style="{ color: device.revoked ? 'var(--color-danger)' : 'var(--color-success)' }">
-            {{ device.revoked ? 'Revoked' : 'Active' }}
-          </p>
+          <span style="color: var(--color-text-muted);" class="text-xs">Data Points</span>
+          <p class="font-semibold text-base text-emerald-400">{{ totalPoints }} points</p>
         </div>
       </div>
     </div>
 
-    <!-- Date/time filters -->
-    <div class="glass-card p-4 mb-6 flex flex-wrap items-end gap-4">
+    <!-- Date/Time Filters -->
+    <div class="glass-card p-4 mb-6 flex flex-wrap items-end gap-3 text-xs">
       <div>
-        <label for="filter-from" class="block text-xs font-medium mb-1" style="color: var(--color-text-muted);">From</label>
-        <input id="filter-from" v-model="filterFrom" type="datetime-local" class="input" style="max-width: 220px;" />
+        <label for="filter-from" class="block font-medium mb-1" style="color: var(--color-text-muted);">From</label>
+        <input id="filter-from" v-model="filterFrom" type="datetime-local" class="input" style="max-width: 200px; font-size: 0.75rem;" />
       </div>
       <div>
-        <label for="filter-to" class="block text-xs font-medium mb-1" style="color: var(--color-text-muted);">To</label>
-        <input id="filter-to" v-model="filterTo" type="datetime-local" class="input" style="max-width: 220px;" />
+        <label for="filter-to" class="block font-medium mb-1" style="color: var(--color-text-muted);">To</label>
+        <input id="filter-to" v-model="filterTo" type="datetime-local" class="input" style="max-width: 200px; font-size: 0.75rem;" />
       </div>
-      <button id="btn-apply-filter" class="btn btn-primary" style="font-size: 0.8rem;" @click="loadHistory">Apply</button>
-      <button id="btn-clear-filter" class="btn btn-ghost" style="font-size: 0.8rem;" @click="clearFilter">Clear</button>
-      <span class="text-xs ml-auto" style="color: var(--color-text-muted);">
-        {{ totalPoints }} points{{ hasMore ? ' (showing first ' + locations.length + ')' : '' }}
-      </span>
+      <button id="btn-apply-filter" class="btn btn-primary" style="font-size: 0.75rem; padding: 0.5rem 1rem;" @click="loadHistory">
+        Filter
+      </button>
+      <button id="btn-clear-filter" class="btn btn-ghost" style="font-size: 0.75rem; padding: 0.5rem 0.75rem;" @click="clearFilter">
+        Reset
+      </button>
+
+      <div class="ml-auto flex items-center gap-2">
+        <button
+          v-if="locations.length > 0"
+          class="btn btn-ghost"
+          style="font-size: 0.75rem; padding: 0.5rem 0.75rem;"
+          @click="zoomToLatest"
+        >
+          Latest Position
+        </button>
+        <span style="color: var(--color-text-muted);">
+          Showing {{ locations.length }} of {{ totalPoints }} points
+        </span>
+      </div>
     </div>
 
-    <!-- Map -->
-    <div class="glass-card mb-6 overflow-hidden">
-      <div id="device-map" class="map-container map-container-large"></div>
+    <!-- Navigation Map Card -->
+    <div class="glass-card mb-6 overflow-hidden relative shadow-2xl" style="border: 1px solid rgba(148, 163, 184, 0.2);">
+      <div id="device-map" class="map-container map-container-large" style="height: 520px; width: 100%;"></div>
     </div>
 
     <!-- Load more -->
@@ -90,9 +106,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '../lib/supabase.js'
+import { createTileLayers, createRadarIcon, createStartIcon, calculateTotalDistanceKm } from '../lib/mapUtils.js'
 import L from 'leaflet'
 
 const props = defineProps({ id: String })
@@ -117,26 +134,19 @@ const confirmTitle = ref('')
 const confirmMessage = ref('')
 let pendingAction = null
 
+const totalDistanceKm = computed(() => calculateTotalDistanceKm(locations.value))
+
 function formatTime(ts) {
-  if (!ts) return '—'
+  if (!ts) return 'Never'
   return new Date(ts).toLocaleString(undefined, {
     month: 'short', day: 'numeric', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   })
 }
 
-function createDotIcon(color) {
-  return L.divIcon({
-    className: '',
-    html: `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
-  })
-}
-
 function escapeHtml(text) {
   const div = document.createElement('div')
-  div.textContent = text
+  div.textContent = text || ''
   return div.innerHTML
 }
 
@@ -174,6 +184,7 @@ async function loadHistory() {
   hasMore.value = (count || 0) > locations.value.length
   loading.value = false
 
+  await nextTick()
   drawMap()
 }
 
@@ -219,82 +230,122 @@ function clearFilter() {
   loadHistory()
 }
 
+function initMap() {
+  const el = document.getElementById('device-map')
+  if (!el || map) return
+
+  map = L.map(el, {
+    zoomControl: false,
+    attributionControl: true,
+  })
+
+  // Custom zoom control in bottom right
+  L.control.zoom({ position: 'bottomright' }).addTo(map)
+
+  // Modern navigation tile layers
+  const { defaultLayer, baseLayers } = createTileLayers()
+  defaultLayer.addTo(map)
+  L.control.layers(baseLayers, null, { position: 'topright' }).addTo(map)
+
+  window.addEventListener('resize', onMapResize)
+}
+
 function drawMap() {
   if (!map) initMap()
+  if (!map) return
 
-  // Clear previous
+  // Clear previous layers
   if (polyline) map.removeLayer(polyline)
   if (startMarker) map.removeLayer(startMarker)
   if (endMarker) map.removeLayer(endMarker)
 
   if (locations.value.length === 0) {
-    map.setView([0, 0], 2)
+    map.setView([35.6892, 51.3890], 5)
     return
   }
 
-  const coords = locations.value.map(l => [l.lat, l.lon])
+  const coords = locations.value.map(l => [Number(l.lat), Number(l.lon)])
 
+  // Glowing trajectory polyline
   polyline = L.polyline(coords, {
     color: '#3b82f6',
-    weight: 3,
-    opacity: 0.8,
-    smoothFactor: 1.5,
+    weight: 4,
+    opacity: 0.9,
+    smoothFactor: 1.2,
+    lineJoin: 'round',
   }).addTo(map)
 
-  // Start marker (green)
+  // Start marker (First point)
   const first = locations.value[0]
-  startMarker = L.marker([first.lat, first.lon], { icon: createDotIcon('#22c55e') }).addTo(map)
-  startMarker.bindPopup(`<strong>Start</strong><br/>${escapeHtml(formatTime(first.recorded_at))}`)
+  startMarker = L.marker([Number(first.lat), Number(first.lon)], {
+    icon: createStartIcon(),
+  }).addTo(map)
+  startMarker.bindPopup(`
+    <strong style="color:#22c55e;">Journey Start</strong><br/>
+    <span style="font-size:0.75rem;color:#94a3b8;">${escapeHtml(formatTime(first.recorded_at))}</span><br/>
+    <span style="font-family:monospace;font-size:0.75rem;color:#93c5fd;">${Number(first.lat).toFixed(5)}, ${Number(first.lon).toFixed(5)}</span>
+  `)
 
-  // End marker (red)
+  // Latest marker (Current Live Beacon)
   const last = locations.value[locations.value.length - 1]
-  endMarker = L.marker([last.lat, last.lon], { icon: createDotIcon('#ef4444') }).addTo(map)
-  endMarker.bindPopup(`<strong>Latest</strong><br/>${escapeHtml(formatTime(last.recorded_at))}`)
+  endMarker = L.marker([Number(last.lat), Number(last.lon)], {
+    icon: createRadarIcon('#3b82f6', true),
+  }).addTo(map)
+  endMarker.bindPopup(`
+    <strong style="color:#60a5fa;">Latest Position</strong><br/>
+    <span style="font-size:0.75rem;color:#94a3b8;">${escapeHtml(formatTime(last.recorded_at))}</span><br/>
+    <span style="font-family:monospace;font-size:0.75rem;color:#93c5fd;">${Number(last.lat).toFixed(5)}, ${Number(last.lon).toFixed(5)}</span>
+  `)
 
-  map.fitBounds(polyline.getBounds(), { padding: [40, 40], maxZoom: 16 })
+  // Camera viewport
+  if (coords.length === 1) {
+    map.setView(coords[0], 16)
+  } else {
+    map.fitBounds(polyline.getBounds(), { padding: [50, 50], maxZoom: 16 })
+  }
+
+  setTimeout(() => {
+    map?.invalidateSize()
+  }, 150)
 }
 
-function initMap() {
-  const el = document.getElementById('device-map')
-  if (!el) return
+function zoomToLatest() {
+  if (!map || locations.value.length === 0) return
+  const last = locations.value[locations.value.length - 1]
+  map.flyTo([Number(last.lat), Number(last.lon)], 16, { duration: 1.2 })
+  if (endMarker) {
+    setTimeout(() => endMarker.openPopup(), 600)
+  }
+}
 
-  map = L.map(el, { zoomControl: true })
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
-    maxZoom: 19,
-  }).addTo(map)
+function onMapResize() {
+  map?.invalidateSize()
 }
 
 function revokeDevice() {
   confirmTitle.value = 'Revoke Device'
-  confirmMessage.value = `This will stop "${device.value?.phone_name}" from sending location data. The token will be permanently invalidated.`
+  confirmMessage.value = 'Are you sure? This device will immediately stop accepting new location data.'
   pendingAction = async () => {
-    await supabase
-      .from('devices')
-      .update({ revoked: true })
-      .eq('id', props.id)
+    await supabase.from('devices').update({ revoked: true }).eq('id', props.id)
     await loadDevice()
-    showConfirm.value = false
   }
   showConfirm.value = true
 }
 
 function deleteDevice() {
   confirmTitle.value = 'Delete Device'
-  confirmMessage.value = `This will permanently delete "${device.value?.phone_name}" and all its location history. This cannot be undone.`
+  confirmMessage.value = 'Are you sure? All historical location points for this device will be permanently deleted.'
   pendingAction = async () => {
-    await supabase
-      .from('devices')
-      .delete()
-      .eq('id', props.id)
+    await supabase.from('devices').delete().eq('id', props.id)
     router.push({ name: 'Dashboard' })
   }
   showConfirm.value = true
 }
 
-function confirmAction() {
-  if (pendingAction) pendingAction()
+async function confirmAction() {
+  if (pendingAction) await pendingAction()
+  showConfirm.value = false
+  pendingAction = null
 }
 
 onMounted(async () => {
@@ -303,6 +354,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', onMapResize)
   if (map) {
     map.remove()
     map = null
