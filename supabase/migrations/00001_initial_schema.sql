@@ -93,7 +93,7 @@ create or replace function public.create_device(p_phone_name text)
 returns json
 language plpgsql
 security definer
-set search_path = ''
+set search_path = public, extensions
 as $$
 declare
   v_user_id    uuid;
@@ -127,7 +127,7 @@ begin
   values (v_device_id, v_user_id, p_phone_name);
 
   -- Generate 32-byte random token → 64-char hex string
-  v_token_raw  := gen_random_bytes(32);
+  v_token_raw  := extensions.gen_random_bytes(32);
   v_token_hex  := encode(v_token_raw, 'hex');
 
   -- Store only the SHA-256 hash
