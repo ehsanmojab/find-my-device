@@ -78,6 +78,39 @@
 
     <!-- Navigation Map Card -->
     <div class="glass-card mb-6 overflow-hidden relative shadow-2xl" style="border: 1px solid rgba(148, 163, 184, 0.2);">
+      <!-- Floating Map Header Controls: Live Position vs Movement Path Toggle -->
+      <div class="absolute top-3 left-3 z-[1000] flex items-center gap-2 pointer-events-auto flex-wrap">
+        <div class="glass-card flex p-1 rounded-xl shadow-xl" style="background: rgba(15, 23, 42, 0.9); border-color: rgba(148, 163, 184, 0.25);">
+          <button
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer"
+            :style="viewMode === 'live' ? 'background: var(--color-primary); color: white;' : 'color: var(--color-text-muted);'"
+            @click="setViewMode('live')"
+          >
+            <span class="w-2 h-2 rounded-full" :style="{ background: viewMode === 'live' ? '#86efac' : '#94a3b8' }"></span>
+            Live Position
+          </button>
+          <button
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer"
+            :style="viewMode === 'path' ? 'background: var(--color-primary); color: white;' : 'color: var(--color-text-muted);'"
+            @click="setViewMode('path')"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="4" r="2"/><circle cx="20" cy="20" r="2"/><path d="M4 6v4a4 4 0 0 0 4 4h8a4 4 0 0 1 4 4v2"/></svg>
+            Movement Path
+          </button>
+        </div>
+
+        <button
+          v-if="viewMode === 'path'"
+          class="btn btn-ghost backdrop-blur-md shadow-xl"
+          style="font-size: 0.75rem; padding: 0.45rem 0.75rem; background: rgba(15, 23, 42, 0.9); border-color: rgba(148,163,184,0.25); color: white;"
+          @click="fitRoute"
+          title="Fit full route in view"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
+          Fit Route
+        </button>
+      </div>
+
       <div id="device-map" class="map-container map-container-large" style="height: 520px; width: 100%;"></div>
     </div>
 
@@ -109,7 +142,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '../lib/supabase.js'
-import { createTileLayers, createRadarIcon, createStartIcon, calculateTotalDistanceKm } from '../lib/mapUtils.js'
+import { createOsmTileLayer, createRadarIcon, createStartIcon, calculateTotalDistanceKm } from '../lib/mapUtils.js'
 import L from 'leaflet'
 
 const props = defineProps({ id: String })
@@ -123,11 +156,13 @@ const filterTo = ref('')
 const totalPoints = ref(0)
 const hasMore = ref(false)
 const PAGE_SIZE = 2000
+const viewMode = ref('path') // 'live' or 'path'
 
 let map = null
 let polyline = null
 let startMarker = null
 let endMarker = null
+let autoRefreshTimer = null
 
 const showConfirm = ref(false)
 const confirmTitle = ref('')
@@ -230,6 +265,26 @@ function clearFilter() {
   loadHistory()
 }
 
+function setViewMode(mode) {
+  viewMode.value = mode
+  drawMap()
+  if (mode === 'live') {
+    zoomToLatest()
+  } else {
+    fitRoute()
+  }
+}
+
+function fitRoute() {
+  if (!map || locations.value.length === 0) return
+  if (polyline) {
+    map.flyToBounds(polyline.getBounds(), { padding: [50, 50], maxZoom: 16, duration: 1.2 })
+  } else if (locations.value.length > 0) {
+    const last = locations.value[locations.value.length - 1]
+    map.flyTo([Number(last.lat), Number(last.lon)], 16, { duration: 1.2 })
+  }
+}
+
 function initMap() {
   const el = document.getElementById('device-map')
   if (!el || map) return
@@ -242,10 +297,8 @@ function initMap() {
   // Custom zoom control in bottom right
   L.control.zoom({ position: 'bottomright' }).addTo(map)
 
-  // Modern navigation tile layers
-  const { defaultLayer, baseLayers } = createTileLayers()
-  defaultLayer.addTo(map)
-  L.control.layers(baseLayers, null, { position: 'topright' }).addTo(map)
+  // Standard OpenStreetMap base layer
+  createOsmTileLayer().addTo(map)
 
   window.addEventListener('resize', onMapResize)
 }
@@ -255,9 +308,18 @@ function drawMap() {
   if (!map) return
 
   // Clear previous layers
-  if (polyline) map.removeLayer(polyline)
-  if (startMarker) map.removeLayer(startMarker)
-  if (endMarker) map.removeLayer(endMarker)
+  if (polyline) {
+    map.removeLayer(polyline)
+    polyline = null
+  }
+  if (startMarker) {
+    map.removeLayer(startMarker)
+    startMarker = null
+  }
+  if (endMarker) {
+    map.removeLayer(endMarker)
+    endMarker = null
+  }
 
   if (locations.value.length === 0) {
     map.setView([35.6892, 51.3890], 5)
@@ -265,42 +327,43 @@ function drawMap() {
   }
 
   const coords = locations.value.map(l => [Number(l.lat), Number(l.lon)])
-
-  // Glowing trajectory polyline
-  polyline = L.polyline(coords, {
-    color: '#3b82f6',
-    weight: 4,
-    opacity: 0.9,
-    smoothFactor: 1.2,
-    lineJoin: 'round',
-  }).addTo(map)
-
-  // Start marker (First point)
   const first = locations.value[0]
-  startMarker = L.marker([Number(first.lat), Number(first.lon)], {
-    icon: createStartIcon(),
-  }).addTo(map)
-  startMarker.bindPopup(`
-    <strong style="color:#22c55e;">Journey Start</strong><br/>
-    <span style="font-size:0.75rem;color:#94a3b8;">${escapeHtml(formatTime(first.recorded_at))}</span><br/>
-    <span style="font-family:monospace;font-size:0.75rem;color:#93c5fd;">${Number(first.lat).toFixed(5)}, ${Number(first.lon).toFixed(5)}</span>
-  `)
+  const last = locations.value[locations.value.length - 1]
+
+  // Render polyline trail and start marker if in 'path' mode
+  if (viewMode.value === 'path' && coords.length > 1) {
+    polyline = L.polyline(coords, {
+      color: '#3b82f6',
+      weight: 4,
+      opacity: 0.9,
+      smoothFactor: 1.2,
+      lineJoin: 'round',
+    }).addTo(map)
+
+    startMarker = L.marker([Number(first.lat), Number(first.lon)], {
+      icon: createStartIcon(),
+    }).addTo(map)
+    startMarker.bindPopup(`
+      <strong style="color:#22c55e;">Journey Start</strong><br/>
+      <span style="font-size:0.75rem;color:#94a3b8;">${escapeHtml(formatTime(first.recorded_at))}</span><br/>
+      <span style="font-family:monospace;font-size:0.75rem;color:#93c5fd;">${Number(first.lat).toFixed(5)}, ${Number(first.lon).toFixed(5)}</span>
+    `)
+  }
 
   // Latest marker (Current Live Beacon)
-  const last = locations.value[locations.value.length - 1]
   endMarker = L.marker([Number(last.lat), Number(last.lon)], {
     icon: createRadarIcon('#3b82f6', true),
   }).addTo(map)
   endMarker.bindPopup(`
-    <strong style="color:#60a5fa;">Latest Position</strong><br/>
+    <strong style="color:#60a5fa;">${viewMode.value === 'live' ? 'Live Position' : 'Latest Position'}</strong><br/>
     <span style="font-size:0.75rem;color:#94a3b8;">${escapeHtml(formatTime(last.recorded_at))}</span><br/>
     <span style="font-family:monospace;font-size:0.75rem;color:#93c5fd;">${Number(last.lat).toFixed(5)}, ${Number(last.lon).toFixed(5)}</span>
   `)
 
   // Camera viewport
-  if (coords.length === 1) {
-    map.setView(coords[0], 16)
-  } else {
+  if (viewMode.value === 'live' || coords.length === 1) {
+    map.setView([Number(last.lat), Number(last.lon)], 16)
+  } else if (polyline) {
     map.fitBounds(polyline.getBounds(), { padding: [50, 50], maxZoom: 16 })
   }
 
@@ -351,9 +414,20 @@ async function confirmAction() {
 onMounted(async () => {
   await loadDevice()
   await loadHistory()
+
+  // Auto-refresh every 15s to update as the device moves
+  autoRefreshTimer = setInterval(async () => {
+    if (!filterFrom.value && !filterTo.value) {
+      await loadDevice()
+      await loadHistory()
+    }
+  }, 15000)
 })
 
 onUnmounted(() => {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer)
+  }
   window.removeEventListener('resize', onMapResize)
   if (map) {
     map.remove()

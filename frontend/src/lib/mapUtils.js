@@ -1,65 +1,14 @@
 import L from 'leaflet'
 
 /**
- * Creates modern, state-of-the-art navigation base map layers.
+ * Creates the standard OpenStreetMap tile layer.
  */
-export function createTileLayers() {
-  const customUrl = (import.meta.env.VITE_MAP_TILE_URL || '').trim()
-
-  const dark = L.tileLayer(
-    'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png',
-    {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 20,
-    }
-  )
-
-  const street = L.tileLayer(
-    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 20,
-    }
-  )
-
-  const satellite = L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    {
-      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-      maxZoom: 19,
-    }
-  )
-
-  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+export function createOsmTileLayer() {
+  return L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
     maxZoom: 19,
   })
-
-  const baseLayers = {}
-  let defaultLayer = dark
-
-  if (customUrl) {
-    const custom = L.tileLayer(customUrl, {
-      attribution: '&copy; Custom Map Provider &copy; OpenStreetMap',
-      maxZoom: 20,
-    })
-    baseLayers['⭐ Premium Custom Map'] = custom
-    defaultLayer = custom
-  }
-
-  baseLayers['🌙 Dark Navigation'] = dark
-  baseLayers['🗺️ Street Navigation'] = street
-  baseLayers['🛰️ Satellite View'] = satellite
-  baseLayers['🌐 OpenStreetMap'] = osm
-
-  return {
-    defaultLayer,
-    baseLayers,
-  }
 }
 
 /**
