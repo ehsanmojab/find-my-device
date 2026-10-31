@@ -62,41 +62,40 @@
           </div>
 
           <div class="p-4 rounded-xl" style="background: rgba(15, 23, 42, 0.5);">
-            <h3 class="font-semibold mb-2" style="color: var(--color-text);">2. Actions (in order)</h3>
-            <ol class="list-decimal ml-4 space-y-2">
+            <h3 class="font-semibold mb-2" style="color: var(--color-text);">Option A: Simple Setup (Recommended — No Script Needed)</h3>
+            <ol class="list-decimal ml-4 space-y-3">
               <li>
-                <strong>Location → Force Location Update</strong>
+                <strong>Action 1:</strong> Location → <strong>Force Location Update</strong>
               </li>
               <li>
-                <strong>Actions → JavaScript</strong> — paste the script below. Set output variable name to <code style="color: #86efac;">payload</code>.
-              </li>
-              <li>
-                <strong>Applications → HTTP Request</strong>
+                <strong>Action 2:</strong> Applications → <strong>HTTP Request</strong>
                 <ul class="list-disc ml-4 mt-1 space-y-1">
                   <li>Method: <strong>POST</strong></li>
                   <li>URL: <code style="color: #86efac;">{{ ingestUrl }}</code></li>
-                  <li>Header: <code style="color: #86efac;">Authorization: Bearer {{ token }}</code></li>
-                  <li>Header: <code style="color: #86efac;">Content-Type: application/json</code></li>
-                  <li>Body: <code style="color: #86efac;">{payload}</code> (the variable from step 2)</li>
-                  <li>Save response code to variable: <code style="color: #86efac;">http_status</code></li>
+                  <li>Content Type: <strong>application/json</strong></li>
+                  <li>Header 1: Name = <code style="color: #86efac;">Authorization</code> | Value = <code style="color: #86efac;">Bearer {{ token }}</code></li>
+                  <li>Header 2: Name = <code style="color: #86efac;">Content-Type</code> | Value = <code style="color: #86efac;">application/json</code></li>
+                  <li>Request Body: paste this JSON directly:</li>
                 </ul>
-              </li>
-              <li>
-                <strong>If</strong> <code style="color: #86efac;">http_status</code> <strong>≠ 200</strong>:
-                <ul class="list-disc ml-4 mt-1">
-                  <li><strong>Variables → Set Variable</strong>: set <code style="color: #86efac;">retry_payload</code> = <code style="color: #86efac;">{payload}</code></li>
-                </ul>
-                <strong>Else</strong>:
-                <ul class="list-disc ml-4 mt-1">
-                  <li><strong>Variables → Set Variable</strong>: set <code style="color: #86efac;">retry_payload</code> = (empty string)</li>
-                </ul>
+                <pre class="token-display text-xs mt-2 overflow-x-auto whitespace-pre-wrap">&#123;
+  "phone_name": "{{ phoneName }}",
+  "lat": [location_lat],
+  "lon": [location_lon],
+  "timestamp": "[year]-[month_digit]-[day_of_month_digit]T[hour_format_24]:[minute]:[second]Z"
+&#125;</pre>
               </li>
             </ol>
           </div>
 
           <div class="p-4 rounded-xl" style="background: rgba(15, 23, 42, 0.5);">
-            <h3 class="font-semibold mb-2" style="color: var(--color-text);">3. JavaScript Code</h3>
-            <p class="mb-2">Paste this into the JavaScript action:</p>
+            <h3 class="font-semibold mb-2" style="color: var(--color-text);">Option B: Advanced Setup (With Offline Retry Queue)</h3>
+            <ol class="list-decimal ml-4 space-y-2">
+              <li>Action 1: Location → <strong>Force Location Update</strong></li>
+              <li>Action 2: Device Actions → <strong>JavaScript Script</strong> (paste the script below and save output to variable <code style="color: #86efac;">payload</code>)</li>
+              <li>Action 3: Applications → <strong>HTTP Request</strong> (Method: POST, URL: <code style="color: #86efac;">{{ ingestUrl }}</code>, Body: <code style="color: #86efac;">&#123;lv=payload&#125;</code>)</li>
+              <li>Action 4: If <code style="color: #86efac;">http_status</code> ≠ 200, set <code style="color: #86efac;">retry_payload</code> = <code style="color: #86efac;">&#123;lv=payload&#125;</code>, else clear it.</li>
+            </ol>
+            <p class="mt-3 mb-1 text-xs">JavaScript Code for Option B:</p>
             <pre class="token-display text-xs overflow-x-auto whitespace-pre-wrap">{{ jsCode }}</pre>
             <button id="btn-copy-js" class="btn btn-ghost w-full mt-3" style="font-size: 0.8rem;" @click="copyJs">
               {{ copiedJs ? '✓ Copied!' : 'Copy JavaScript' }}
@@ -134,41 +133,34 @@ const copiedJs = ref(false)
 const ingestUrl = computed(() => `${supabaseUrl}/functions/v1/ingest`)
 
 const jsCode = computed(() => {
-  return `// Find Any Device – MacroDroid JavaScript action
-// Builds location payload and handles offline retry.
-var lat = getVar("loc_lat") || lm("latitude");
-var lon = getVar("loc_lon") || lm("longitude");
-var phoneName = "${phoneName.value.replace(/"/g, '\\"')}";
-var ts = new Date().toISOString();
+  return `(function() {
+  var lat = parseFloat("[location_lat]");
+  var lon = parseFloat("[location_lon]");
+  var phoneName = "${phoneName.value.replace(/"/g, '\\"')}";
+  var ts = new Date().toISOString();
 
-var point = {
-  phone_name: phoneName,
-  lat: parseFloat(lat),
-  lon: parseFloat(lon),
-  timestamp: ts
-};
+  var point = {
+    phone_name: phoneName,
+    lat: isNaN(lat) ? 0 : lat,
+    lon: isNaN(lon) ? 0 : lon,
+    timestamp: ts
+  };
 
-// Check for pending retry payload
-var retry = getVar("retry_payload");
-var payload;
+  var retry = "{lv=retry_payload}";
+  var payload = [point];
 
-if (retry && retry.length > 2) {
-  try {
-    var prev = JSON.parse(retry);
-    if (Array.isArray(prev)) {
-      prev.push(point);
-      payload = prev;
-    } else {
-      payload = [prev, point];
-    }
-  } catch(e) {
-    payload = point;
+  if (retry && retry.indexOf("[") === 0) {
+    try {
+      var prev = JSON.parse(retry);
+      if (Array.isArray(prev)) {
+        prev.push(point);
+        payload = prev;
+      }
+    } catch(e) {}
   }
-} else {
-  payload = point;
-}
 
-mdOutput(JSON.stringify(payload));`
+  return JSON.stringify(payload);
+})()`
 })
 
 async function createDevice() {

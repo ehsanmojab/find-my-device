@@ -93,13 +93,26 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
-  // ---- Auth: extract bearer token --------------------------
-  const authHeader = req.headers.get("authorization") ?? "";
-  const match = authHeader.match(/^Bearer\s+([0-9a-fA-F]{64})$/);
-  if (!match) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
+  // ---- Auth: extract token ---------------------------------
+  const authHeader = (req.headers.get("authorization") ?? "").trim().replace(/^['"]+|['"]+$/g, "");
+  const tokenHeader = (req.headers.get("x-device-token") ?? "").trim().replace(/^['"]+|['"]+$/g, "");
+
+  let tokenHex = "";
+  const match = authHeader.match(/^Bearer\s+([0-9a-fA-F]{64})$/i);
+  if (match) {
+    tokenHex = match[1].toLowerCase();
+  } else if (/^[0-9a-fA-F]{64}$/.test(authHeader)) {
+    tokenHex = authHeader.toLowerCase();
+  } else if (/^[0-9a-fA-F]{64}$/.test(tokenHeader)) {
+    tokenHex = tokenHeader.toLowerCase();
   }
-  const tokenHex = match[1].toLowerCase();
+
+  if (!tokenHex) {
+    console.warn("Unauthorized: invalid or missing token. Header:", authHeader);
+    return jsonResponse({
+      error: "Unauthorized: Invalid or missing 64-char token. Expected 'Authorization: Bearer <token>'",
+    }, 401);
+  }
 
   // ---- Body size guard -------------------------------------
   const contentLength = parseInt(req.headers.get("content-length") ?? "0", 10);
@@ -154,12 +167,13 @@ Deno.serve(async (req: Request) => {
     .single();
 
   if (matchErr || !matchRow) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
+    console.warn("Unauthorized: token hash not found in device_secrets:", tokenHash);
+    return jsonResponse({ error: "Unauthorized: Token not recognized" }, 401);
   }
 
   // Constant-time verify after DB lookup (defense in depth)
   if (!constantTimeHexEqual(matchRow.token_hash, tokenHash)) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
+    return jsonResponse({ error: "Unauthorized: Token mismatch" }, 401);
   }
 
   const deviceId = matchRow.device_id;
@@ -172,7 +186,8 @@ Deno.serve(async (req: Request) => {
     .single();
 
   if (deviceErr || !device || device.revoked) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
+    console.warn("Unauthorized: device is revoked or missing:", deviceId);
+    return jsonResponse({ error: "Unauthorized: Device is revoked" }, 401);
   }
 
   // ---- Insert locations (ON CONFLICT DO NOTHING) -----------
