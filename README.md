@@ -75,6 +75,7 @@ Vue 3 SPA (GitHub Pages)
    | `VITE_SUPABASE_ANON_KEY` | `your-anon-key`                      |
    | `VITE_EMAIL_DOMAIN`    | `findanydevice.local`                  |
    | `VITE_BASE_PATH`       | `/your-repo-name/`                     |
+   | `VITE_MAP_TILE_URL`    | *(Optional) Custom raster PNG tile URL*|
 
    > The anon key is **public** by design. It is safe as a variable (not a secret).
 
