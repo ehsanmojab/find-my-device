@@ -7,11 +7,8 @@
   </defs>
   <!-- App Icon Background -->
   <rect width="32" height="32" rx="8" fill="url(#pinGrad)" />
-  <!-- Radar Wave Ring -->
-  <circle cx="16" cy="14" r="10" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.5" stroke-dasharray="2 2" />
-  <!-- Pin Body -->
-  <path d="M16 5.5 C11.3 5.5 7.5 9.3 7.5 14 C7.5 20 16 26.5 16 26.5 C16 26.5 24.5 20 24.5 14 C24.5 9.3 20.7 5.5 16 5.5 Z" fill="#ffffff" />
-  <!-- Device Icon Inside Pin -->
-  <rect x="13.5" y="9.5" width="5" height="8.5" rx="1.2" fill="#2563eb" />
-  <circle cx="16" cy="16.2" r="0.6" fill="#ffffff" />
+  <!-- Simple location pin -->
+  <path d="M16 5 C10.75 5 6.5 9.25 6.5 14.5 C6.5 21.2 16 27.5 16 27.5 C16 27.5 25.5 21.2 25.5 14.5 C25.5 9.25 21.25 5 16 5 Z" fill="#ffffff" />
+  <!-- Inner center dot matching gradient -->
+  <circle cx="16" cy="13.5" r="4" fill="url(#pinGrad)" />
 </svg>
